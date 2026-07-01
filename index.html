@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comic Release Calendar</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #1a1a2e; --muted: #6b7280;
+    --line: #e3e6ea; --wed: #003580; --wed-ink: #ffffff; --today: #ff6b35;
+    --chip: #f0f2f5; --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1d2026; --ink: #e8eaed; --muted: #9aa0a8;
+      --line: #2c3038; --wed: #1e4d8c; --wed-ink: #ffffff; --today: #ff7a47;
+      --chip: #262a31; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.45;
+  }
+  header {
+    position: sticky; top: 0; z-index: 30; background: var(--panel);
+    border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  .bar { max-width: 1240px; margin: 0 auto; padding: 12px 16px;
+         display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin-right: 4px; }
+  .monthnav { display: flex; align-items: center; gap: 6px; }
+  .monthnav button {
+    width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); color: var(--ink); cursor: pointer; font-size: 16px;
+  }
+  .monthnav button:hover { background: var(--chip); }
+  .monthlabel { min-width: 168px; text-align: center; font-weight: 600; font-size: 16px; }
+  .grow { flex: 1 1 auto; }
+  .viewtoggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .viewtoggle button {
+    border: 0; background: transparent; color: var(--muted);
+    padding: 7px 14px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .viewtoggle button.on { background: var(--chip); color: var(--ink); }
+  .search {
+    border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
+    color: var(--ink); padding: 8px 12px; font-size: 14px; min-width: 200px;
+  }
+  .filters { max-width: 1240px; margin: 0 auto; padding: 0 16px 12px;
+             display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .flabel { font-size: 12px; color: var(--muted); font-weight: 700;
+            text-transform: uppercase; letter-spacing: .04em; margin-right: 2px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 12.5px; padding: 5px 11px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    user-select: none;
+  }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .chip[data-on="0"] { opacity: .38; }
+  .chip.cat[data-on="1"] { background: var(--chip); }
+  .chiprow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .more-wrap { position: relative; display: inline-block; }
+  .more-btn { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+    border: 1px dashed var(--muted); background: var(--chip); color: var(--ink); user-select: none; }
+  .more-btn .count { background: var(--wed); color: #fff; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; }
+  .menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 40; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); width: 320px;
+    max-height: 380px; overflow-y: auto; padding: 10px; display: none; }
+  .menu.open { display: block; }
+  .menu-search { width: 100%; padding: 7px 10px; font-size: 13px; margin-bottom: 8px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--chip); color: var(--ink); }
+  .menu-actions { display: flex; gap: 6px; margin-bottom: 8px; }
+  .menu-actions button { flex: 1; font-size: 12px; padding: 6px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; }
+  .menu-item { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; }
+  .menu-item:hover { background: var(--chip); }
+  .menu-item .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .menu-item .check { margin-left: auto; color: var(--wed); opacity: 0; }
+  .menu-item[data-on="1"] .check { opacity: 1; }
+  .menu-item[data-on="0"] { opacity: .5; }
+  .linkbtn { font-size: 12px; color: var(--muted); background: none; border: 0;
+             cursor: pointer; text-decoration: underline; }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 16px; }
+  .count { color: var(--muted); font-size: 13px; margin: 2px 2px 14px; }
+
+  /* Month grid */
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted);
+         text-transform: uppercase; letter-spacing: .04em; padding: 4px 0; }
+  .dow.wed { color: var(--wed); }
+  .cell {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    min-height: 116px; padding: 7px; overflow: hidden; display: flex; flex-direction: column;
+  }
+  .cell.empty { background: transparent; border-color: transparent; }
+  .cell.wed { border-color: var(--wed); }
+  .cell.today { outline: 2px solid var(--today); outline-offset: -1px; }
+  .daynum { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 5px;
+            display: flex; justify-content: space-between; align-items: center; }
+  .cell.wed .daynum { color: var(--wed); }
+  .wedtag { font-size: 8.5px; background: var(--wed); color: var(--wed-ink);
+            padding: 1px 5px; border-radius: 5px; font-weight: 700; letter-spacing: .02em; }
+  .pips { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+  .pip {
+    font-size: 11px; line-height: 1.25; padding: 2px 6px; border-radius: 5px;
+    background: var(--chip); cursor: pointer; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--line);
+  }
+  .pip:hover { filter: brightness(1.04); }
+  .more { font-size: 10.5px; color: var(--muted); padding: 1px 6px; cursor: pointer; }
+
+  /* List view */
+  .daygroup { margin-bottom: 22px; }
+  .dayhdr { font-size: 14px; font-weight: 700; margin: 0 0 9px;
+            padding-bottom: 6px; border-bottom: 1px solid var(--line);
+            display: flex; align-items: center; gap: 9px; }
+  .dayhdr .wedtag { font-size: 9.5px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 11px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+    overflow: hidden; cursor: pointer; display: flex; flex-direction: column;
+    border-top: 3px solid var(--line); transition: transform .08s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .cover { width: 100%; aspect-ratio: 2/3; background: var(--chip);
+           object-fit: cover; display: block; }
+  .nocover { width: 100%; aspect-ratio: 2/3; background: var(--chip);
+             display: flex; align-items: center; justify-content: center;
+             color: var(--muted); font-size: 11px; text-align: center; padding: 8px; }
+  .cbody { padding: 8px 9px 10px; }
+  .ctitle { font-size: 12.5px; font-weight: 600; line-height: 1.3;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; }
+  .cpub { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+
+  /* Detail modal */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50;
+           display: none; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+  .scrim.on { display: flex; }
+  .modal { background: var(--panel); border-radius: 16px; max-width: 960px; width: 100%;
+           box-shadow: var(--shadow); overflow: hidden; }
+  .mtop { display: grid; grid-template-columns: 320px 1fr; gap: 0; }
+  @media (max-width: 640px) { .mtop { grid-template-columns: 1fr; } }
+  .mcover { width: 100%; background: var(--chip); object-fit: cover; aspect-ratio: 2/3; display:block; }
+  /* Cover carousel */
+  .gallery { position: relative; background: var(--chip); }
+  .gallery .mcover { aspect-ratio: 2/3; }
+  .gnav { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px;
+          border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 22px;
+          cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 3; }
+  .gnav:hover { background: rgba(0,0,0,.78); }
+  .gnav.prev { left: 8px; } .gnav.next { right: 8px; }
+  .gcount { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,.6); color: #fff; font-size: 11px; padding: 2px 9px;
+            border-radius: 999px; z-index: 3; }
+  .glabel { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.6); color: #fff;
+            font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px; z-index: 3; }
+  .mbody { padding: 22px 26px 26px; }
+  .mpub { display: inline-block; font-size: 11px; font-weight: 700; color: #fff;
+          padding: 3px 9px; border-radius: 6px; margin-bottom: 8px; }
+  .mtitle { font-size: 23px; font-weight: 700; line-height: 1.22; margin: 0 0 5px; }
+  .mmeta { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .mdesc { font-size: 14.5px; line-height: 1.5; margin: 14px 0; }
+  .mrow { font-size: 13.5px; margin: 5px 0; }
+  .mrow b { color: var(--muted); font-weight: 600; }
+  .mlink { display: inline-block; margin-top: 14px; font-size: 13.5px; color: var(--wed); }
+  .mbtn { display: inline-block; margin: 14px 14px 0 0; font-size: 13px; font-weight: 600;
+          padding: 8px 15px; border-radius: 9px; border: 1px solid var(--line);
+          background: var(--chip); color: var(--ink); cursor: pointer; }
+  .mbtn:hover { filter: brightness(1.06); }
+  .close { position: absolute; top: 14px; right: 16px; font-size: 26px; line-height: 1;
+           color: #fff; cursor: pointer; text-shadow: 0 1px 4px rgba(0,0,0,.6); z-index: 4; }
+  /* Series view */
+  .series-head { padding: 22px 26px 6px; }
+  .series-title { font-size: 22px; font-weight: 700; margin: 0 0 2px; }
+  .series-sub { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .series-back { font-size: 13px; color: var(--wed); cursor: pointer; background: none;
+                 border: 0; padding: 0; margin-bottom: 10px; }
+  .series-list { padding: 6px 18px 24px; display: grid;
+                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .si-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             overflow: hidden; cursor: pointer; border-top: 3px solid var(--line); }
+  .si-card:hover { box-shadow: var(--shadow); }
+  .si-cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: var(--chip); display:block; }
+  .si-nocover { width:100%; aspect-ratio:2/3; background:var(--chip); display:flex;
+                align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
+  .si-body { padding: 7px 9px 9px; }
+  .si-issue { font-size: 12.5px; font-weight: 700; }
+  .si-date { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .si-past { opacity: .62; }
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 14px; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 18px 16px 40px;
+           color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" id="brand">Comic Releases</div>
+    <div class="monthnav">
+      <button id="prev" aria-label="Previous month">‹</button>
+      <div class="monthlabel" id="monthLabel">—</div>
+      <button id="next" aria-label="Next month">›</button>
+    </div>
+    <div class="grow"></div>
+    <input class="search" id="search" type="search" placeholder="Search title, series, creator…">
+    <div class="viewtoggle">
+      <button id="vMonth">Month</button>
+      <button id="vList">List</button>
+    </div>
+  </div>
+  <div class="filters" id="filters">
+    <div class="chiprow" id="pubRow">
+      <span class="flabel">Publishers</span>
+      <span id="pubChips" style="display:contents"></span>
+      <span class="more-wrap">
+        <span class="more-btn" id="moreBtn">+ More <span class="count" id="moreCount">0</span> <span style="color:var(--muted)">▾</span></span>
+        <div class="menu" id="pubMenu">
+          <input class="menu-search" id="menuSearch" placeholder="Search publishers…">
+          <div class="menu-actions">
+            <button id="mAll">Select all</button>
+            <button id="mNone">Clear</button>
+          </div>
+          <div id="menuItems"></div>
+        </div>
+      </span>
+      <button class="linkbtn" id="pubAll" style="margin-left:6px">all</button>
+      <button class="linkbtn" id="pubNone">none</button>
+    </div>
+    <div class="chiprow" style="margin-top:8px">
+      <span class="flabel">Type</span>
+      <span id="catChips" style="display:contents"></span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="count" id="count"></div>
+  <div id="view"></div>
+</main>
+
+<footer id="footer"></footer>
+
+<div class="scrim" id="scrim">
+  <div class="modal" id="modal" style="position:relative">
+    <span class="close" id="close">×</span>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+const META = {"title": "Comic Release Calendar", "defaultView": "month", "publishers": ["DC", "Image", "Marvel"], "bigPublishers": ["Marvel", "DC", "Image"], "otherPublishers": [], "pubColors": {"DC": "#0476f2", "Image": "#f7941d", "Marvel": "#ec1d24"}, "categories": ["Comics"], "generated": "June 29, 2026"};
+const DATA = [{"date": "2026-05-06", "title": "Batman #159", "publisher": "DC", "color": "#0476f2", "series": "Batman", "issue": "159", "price": "$4.99", "pages": "", "rating": "", "creators": "Chip Zdarsky", "cover_artist": "", "description": "The Dark Knight returns to Gotham's underworld.", "image": "", "covers": [], "url": "", "category": "Comics", "source": ""}, {"date": "2026-05-06", "title": "Amazing Spider-Man #52", "publisher": "Marvel", "color": "#ec1d24", "series": "Amazing Spider-Man", "issue": "52", "price": "$4.99", "pages": "", "rating": "", "creators": "Joe Kelly, Pepe Larraz", "cover_artist": "", "description": "Spidey faces a new threat across the city.", "image": "", "covers": [], "url": "", "category": "Comics", "source": ""}, {"date": "2026-05-13", "title": "Invincible #155", "publisher": "Image", "color": "#f7941d", "series": "Invincible", "issue": "155", "price": "$3.99", "pages": "", "rating": "", "creators": "Robert Kirkman", "cover_artist": "", "description": "", "image": "", "covers": [], "url": "", "category": "Comics", "source": ""}];
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  view: META.defaultView,
+  month: null,         // 0-based
+  year: null,
+  activePubs: new Set(META.publishers),
+  activeCats: new Set(META.categories),
+  search: "",
+};
+
+const MONTHS = ["January","February","March","April","May","June",
+  "July","August","September","October","November","December"];
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+// Pick the starting month: earliest month that has releases, else today.
+(function initMonth(){
+  if (DATA.length) {
+    const d = DATA[0].date.split("-");
+    state.year = +d[0]; state.month = +d[1]-1;
+  } else {
+    const now = new Date();
+    state.year = now.getFullYear(); state.month = now.getMonth();
+  }
+})();
+
+const todayISO = new Date().toISOString().slice(0,10);
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const esc = s => (s||"").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function monthReleases() {
+  const prefix = `${state.year}-${String(state.month+1).padStart(2,"0")}`;
+  return DATA.filter(r => r.date.startsWith(prefix));
+}
+
+function passesFilters(r) {
+  if (!state.activePubs.has(r.publisher)) return false;
+  if (!state.activeCats.has(r.category)) return false;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    const hay = (r.title+" "+r.series+" "+r.creators+" "+r.cover_artist).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function visibleReleases() { return monthReleases().filter(passesFilters); }
+
+// ── Render: header bits ──────────────────────────────────────────────────────
+function renderChrome() {
+  document.getElementById("brand").textContent = META.title;
+  document.getElementById("monthLabel").textContent = `${MONTHS[state.month]} ${state.year}`;
+  document.getElementById("vMonth").classList.toggle("on", state.view==="month");
+  document.getElementById("vList").classList.toggle("on", state.view==="list");
+  document.title = `${META.title} — ${MONTHS[state.month]} ${state.year}`;
+}
+
+function renderChips() {
+  // Big publishers get their own chips; the long tail goes in the dropdown.
+  const bigs = META.bigPublishers || META.publishers;
+  const pc = document.getElementById("pubChips");
+  pc.innerHTML = bigs.map(p => {
+    const on = state.activePubs.has(p) ? 1 : 0;
+    return `<span class="chip pub" data-pub="${esc(p)}" data-on="${on}">
+      <span class="dot" style="background:${META.pubColors[p]||'#555'}"></span>${esc(p)}</span>`;
+  }).join("");
+  pc.querySelectorAll(".chip").forEach(el => el.onclick = () => {
+    const p = el.dataset.pub;
+    if (state.activePubs.has(p)) state.activePubs.delete(p); else state.activePubs.add(p);
+    render();
+  });
+
+  renderPubMenu();
+
+  const cc = document.getElementById("catChips");
+  cc.innerHTML = META.categories.map(c => {
+    const on = state.activeCats.has(c) ? 1 : 0;
+    return `<span class="chip cat" data-cat="${esc(c)}" data-on="${on}">${esc(c)}</span>`;
+  }).join("");
+  cc.querySelectorAll(".chip").forEach(el => el.onclick = () => {
+    const c = el.dataset.cat;
+    if (state.activeCats.has(c)) state.activeCats.delete(c); else state.activeCats.add(c);
+    render();
+  });
+}
+
+function renderPubMenu(filter) {
+  const others = META.otherPublishers || [];
+  const searchEl = document.getElementById("menuSearch");
+  const f = (filter !== undefined ? filter : (searchEl ? searchEl.value : "")).toLowerCase();
+  const box = document.getElementById("menuItems");
+  if (!box) return;
+  box.innerHTML = others
+    .filter(p => p.toLowerCase().includes(f))
+    .map(p => {
+      const on = state.activePubs.has(p) ? 1 : 0;
+      return `<div class="menu-item" data-pub="${esc(p)}" data-on="${on}">
+        <span class="dot" style="background:${META.pubColors[p]||'#888'}"></span>${esc(p)}
+        <span class="check">✓</span></div>`;
+    }).join("");
+  box.querySelectorAll(".menu-item").forEach(el => el.onclick = () => {
+    const p = el.dataset.pub;
+    if (state.activePubs.has(p)) state.activePubs.delete(p); else state.activePubs.add(p);
+    render();
+  });
+  // Update the count badge: how many "other" publishers are active.
+  const cnt = others.filter(p => state.activePubs.has(p)).length;
+  const badge = document.getElementById("moreCount");
+  if (badge) badge.textContent = cnt;
+}
+
+// ── Render: month grid ───────────────────────────────────────────────────────
+function renderMonth() {
+  const rels = visibleReleases();
+  const byDay = {};
+  rels.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+
+  // Monday-first grid
+  const first = new Date(state.year, state.month, 1);
+  let lead = (first.getDay()+6)%7;  // convert Sun=0 → Mon=0
+  const daysInMonth = new Date(state.year, state.month+1, 0).getDate();
+
+  let html = `<div class="grid">`;
+  DOW.forEach((d,i) => html += `<div class="dow${i===2?' wed':''}">${d}</div>`);
+  for (let i=0;i<lead;i++) html += `<div class="cell empty"></div>`;
+
+  for (let day=1; day<=daysInMonth; day++) {
+    const iso = `${state.year}-${String(state.month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const dow = (new Date(state.year, state.month, day).getDay()+6)%7;
+    const isWed = dow===2;
+    const isToday = iso===todayISO;
+    const items = byDay[iso] || [];
+    let cls = "cell";
+    if (isWed) cls += " wed";
+    if (isToday) cls += " today";
+
+    html += `<div class="${cls}"><div class="daynum"><span>${day}</span>` +
+            (isWed ? `<span class="wedtag">NCD</span>` : ``) + `</div><div class="pips">`;
+    const cap = 6;
+    items.slice(0,cap).forEach(r => {
+      html += `<div class="pip" data-id="${DATA.indexOf(r)}" style="border-left-color:${r.color};background:${r.color}1a">${esc(r.title)}</div>`;
+    });
+    if (items.length>cap)
+      html += `<div class="more" data-date="${iso}">+${items.length-cap} more…</div>`;
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+  document.getElementById("view").innerHTML = html;
+
+  document.querySelectorAll(".pip").forEach(el =>
+    el.onclick = () => openDetail(DATA[+el.dataset.id]));
+  document.querySelectorAll(".more").forEach(el =>
+    el.onclick = () => { state.view="list"; render(); 
+      const node = document.getElementById("day-"+el.dataset.date);
+      if (node) node.scrollIntoView({behavior:"smooth", block:"start"}); });
+}
+
+// ── Render: list view ────────────────────────────────────────────────────────
+function renderList() {
+  const rels = visibleReleases();
+  if (!rels.length) {
+    document.getElementById("view").innerHTML =
+      `<div class="empty-state">No releases match your filters this month.</div>`;
+    return;
+  }
+  const byDay = {};
+  rels.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+  const dates = Object.keys(byDay).sort();
+
+  let html = "";
+  dates.forEach(iso => {
+    const d = new Date(iso+"T00:00:00");
+    const isWed = (d.getDay()+6)%7===2;
+    const label = d.toLocaleDateString(undefined,
+      {weekday:"long", month:"long", day:"numeric"});
+    html += `<div class="daygroup" id="day-${iso}"><div class="dayhdr">${esc(label)}` +
+            (isWed?` <span class="wedtag">New Comic Day</span>`:``) +
+            ` <span style="color:var(--muted);font-weight:500">· ${byDay[iso].length}</span></div><div class="cards">`;
+    byDay[iso].forEach(r => {
+      const cover = r.image
+        ? `<img class="cover" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.outerHTML='<div class=\\'nocover\\'>No cover</div>'">`
+        : `<div class="nocover">No cover</div>`;
+      html += `<div class="card" data-id="${DATA.indexOf(r)}" style="border-top-color:${r.color}">
+        ${cover}<div class="cbody"><div class="ctitle">${esc(r.title)}</div>
+        <div class="cpub">${esc(r.publisher)}</div></div></div>`;
+    });
+    html += `</div></div>`;
+  });
+  document.getElementById("view").innerHTML = html;
+  document.querySelectorAll(".card").forEach(el =>
+    el.onclick = () => openDetail(DATA[+el.dataset.id]));
+}
+
+// ── Detail modal (with cover carousel + full-series link) ────────────────────
+let _gallery = [];   // current list of cover URLs in the open modal
+let _gIdx = 0;
+
+function _seriesKey(r) {
+  // Match issues of the same series across all scraped months.
+  return ((r.series || "").trim() || r.title).toLowerCase().replace(/\s+/g, " ");
+}
+
+function _issueNum(r) {
+  if (r.issue) return parseInt(r.issue, 10);
+  const m = (r.title || "").match(/#\s*(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function renderGallery() {
+  const g = document.getElementById("galleryImg");
+  if (!g) return;
+  const url = _gallery[_gIdx];
+  g.innerHTML =
+    `<img class="mcover" src="${esc(url)}" alt="" onerror="this.outerHTML='<div class=\\'mcover\\' style=\\'display:flex;align-items:center;justify-content:center;color:var(--muted)\\'>No cover</div>'">`;
+  const cnt = document.getElementById("gCount");
+  if (cnt) cnt.textContent = `${_gIdx+1} / ${_gallery.length}`;
+}
+function galleryStep(d) {
+  if (_gallery.length < 2) return;
+  _gIdx = (_gIdx + d + _gallery.length) % _gallery.length;
+  renderGallery();
+}
+
+function openDetail(r) {
+  _gallery = (r.covers && r.covers.length) ? r.covers.slice() : (r.image ? [r.image] : []);
+  _gIdx = 0;
+
+  let coverBlock;
+  if (_gallery.length) {
+    const multi = _gallery.length > 1;
+    coverBlock = `<div class="gallery">
+      <div id="galleryImg"></div>
+      ${multi ? `<div class="glabel">COVERS</div>
+                 <button class="gnav prev" id="gPrev">‹</button>
+                 <button class="gnav next" id="gNext">›</button>
+                 <div class="gcount" id="gCount"></div>` : ``}
+    </div>`;
+  } else {
+    coverBlock = `<div class="mcover" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">No cover</div>`;
+  }
+
+  const meta = [];
+  if (r.date) meta.push(new Date(r.date+"T00:00:00").toLocaleDateString(undefined,
+    {weekday:"long", year:"numeric", month:"long", day:"numeric"}));
+  if (r.category) meta.push(r.category);
+  if (r.rating) meta.push(r.rating);
+
+  const rows = [];
+  if (r.series)       rows.push(`<div class="mrow"><b>Series:</b> ${esc(r.series)}${r.issue?` #${esc(r.issue)}`:""}</div>`);
+  if (r.creators)     rows.push(`<div class="mrow"><b>Creators:</b> ${esc(r.creators)}</div>`);
+  if (r.cover_artist) rows.push(`<div class="mrow"><b>Cover:</b> ${esc(r.cover_artist)}</div>`);
+  const pp = [r.price, r.pages?`${esc(r.pages)} pp`:""].filter(Boolean).join("  ·  ");
+  if (pp)             rows.push(`<div class="mrow"><b>Details:</b> ${pp}</div>`);
+
+  // How many issues of this series do we have across all months?
+  const sk = _seriesKey(r);
+  const seriesCount = DATA.filter(x => _seriesKey(x) === sk).length;
+  const seriesBtn = seriesCount > 1
+    ? `<button class="mbtn" id="seriesBtn">📚 View full series (${seriesCount} issues)</button>`
+    : ``;
+
+  document.getElementById("modalContent").innerHTML = `
+    <div class="mtop">${coverBlock}<div class="mbody">
+      <span class="mpub" style="background:${r.color}">${esc(r.publisher)}</span>
+      <h2 class="mtitle">${esc(r.title)}</h2>
+      <div class="mmeta">${esc(meta.join("  ·  "))}</div>
+      ${rows.join("")}
+      ${r.description?`<div class="mdesc">${esc(r.description)}</div>`:""}
+      <div>
+        ${seriesBtn}
+        ${r.url?`<a class="mlink" href="${esc(r.url)}" target="_blank" rel="noopener">View at publisher ↗</a>`:""}
+      </div>
+    </div></div>`;
+
+  if (_gallery.length) renderGallery();
+  const gp = document.getElementById("gPrev"), gn = document.getElementById("gNext");
+  if (gp) gp.onclick = e => { e.stopPropagation(); galleryStep(-1); };
+  if (gn) gn.onclick = e => { e.stopPropagation(); galleryStep(1); };
+  const sb = document.getElementById("seriesBtn");
+  if (sb) sb.onclick = () => openSeries(sk, r.title);
+
+  document.getElementById("scrim").classList.add("on");
+}
+
+// ── Full-series view: every scraped issue of a series, past → future ─────────
+function openSeries(seriesKey, fallbackName) {
+  const issues = DATA.filter(x => _seriesKey(x) === seriesKey)
+                     .slice()
+                     .sort((a,b) => {
+                       const an = _issueNum(a), bn = _issueNum(b);
+                       if (an!=null && bn!=null && an!==bn) return an - bn;
+                       return (a.date||"").localeCompare(b.date||"");
+                     });
+  const name = (issues[0] && issues[0].series) || fallbackName || "Series";
+  const today = todayISO;
+
+  let cards = "";
+  issues.forEach(r => {
+    const past = (r.date || "") < today;
+    const cover = r.image
+      ? `<img class="si-cover" loading="lazy" src="${esc(r.image)}" alt="" onerror="this.outerHTML='<div class=\\'si-nocover\\'>No cover</div>'">`
+      : `<div class="si-nocover">No cover</div>`;
+    const label = r.issue ? `#${esc(r.issue)}` : esc(r.title);
+    const dlabel = r.date ? new Date(r.date+"T00:00:00").toLocaleDateString(undefined,
+      {year:"numeric", month:"short", day:"numeric"}) : "";
+    cards += `<div class="si-card ${past?'si-past':''}" data-id="${DATA.indexOf(r)}"
+                style="border-top-color:${r.color}">
+      ${cover}<div class="si-body"><div class="si-issue">${label}</div>
+      <div class="si-date">${dlabel}${past?' · released':''}</div></div></div>`;
+  });
+
+  document.getElementById("modalContent").innerHTML = `
+    <div class="series-head">
+      <button class="series-back" id="seriesBack">‹ back to issue</button>
+      <h2 class="series-title">${esc(name)}</h2>
+      <div class="series-sub">${issues.length} issue${issues.length!==1?"s":""} in your calendar · earliest to latest</div>
+    </div>
+    <div class="series-list">${cards}</div>`;
+
+  document.querySelectorAll(".si-card").forEach(el =>
+    el.onclick = () => openDetail(DATA[+el.dataset.id]));
+  const back = document.getElementById("seriesBack");
+  if (back) back.onclick = () => { const first = issues[0]; if (first) openDetail(first); };
+
+  document.getElementById("scrim").classList.add("on");
+}
+
+function closeDetail(){ document.getElementById("scrim").classList.remove("on"); }
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("scrim").classList.contains("on")) return;
+  if (e.key === "ArrowLeft")  galleryStep(-1);
+  if (e.key === "ArrowRight") galleryStep(1);
+});
+
+// ── Master render ────────────────────────────────────────────────────────────
+function render() {
+  renderChrome();
+  renderChips();
+  if (state.view==="month") renderMonth(); else renderList();
+  const n = visibleReleases().length;
+  const tot = monthReleases().length;
+  document.getElementById("count").textContent =
+    n===tot ? `${n} release${n!==1?"s":""}` : `${n} of ${tot} shown`;
+  document.getElementById("footer").innerHTML =
+    `Generated ${esc(META.generated)} · ${DATA.length} total releases across all months · ` +
+    `Wednesdays marked “New Comic Day.” Click any release for details.`;
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+function step(delta){
+  let m = state.month + delta, y = state.year;
+  if (m<0){m=11;y--;} if (m>11){m=0;y++;}
+  state.month=m; state.year=y; render();
+}
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("vMonth").onclick = () => { state.view="month"; render(); };
+document.getElementById("vList").onclick  = () => { state.view="list";  render(); };
+document.getElementById("search").oninput = e => { state.search=e.target.value.trim(); render(); };
+document.getElementById("pubAll").onclick = () => { state.activePubs=new Set(META.publishers); render(); };
+document.getElementById("pubNone").onclick= () => { state.activePubs=new Set(); render(); };
+
+// Publisher "More" dropdown
+const _pubMenu = document.getElementById("pubMenu");
+document.getElementById("moreBtn").onclick = e => { e.stopPropagation(); _pubMenu.classList.toggle("open"); };
+document.getElementById("menuSearch").oninput = e => renderPubMenu(e.target.value);
+document.getElementById("mAll").onclick = () => {
+  (META.otherPublishers||[]).forEach(p => state.activePubs.add(p)); render();
+};
+document.getElementById("mNone").onclick = () => {
+  (META.otherPublishers||[]).forEach(p => state.activePubs.delete(p)); render();
+};
+document.addEventListener("click", e => { if (!e.target.closest(".more-wrap")) _pubMenu.classList.remove("open"); });
+
+document.getElementById("close").onclick  = closeDetail;
+document.getElementById("scrim").onclick  = e => { if (e.target.id==="scrim") closeDetail(); };
+document.addEventListener("keydown", e => { if (e.key==="Escape") closeDetail(); });
+
+render();
+</script>
+</body>
+</html>
